@@ -594,7 +594,7 @@ NSUInteger GetMaxSampleRate(const webrtc::H264ProfileLevelId &profile_level_id) 
   // buffers retrieved from the encoder's pixel buffer pool.
   const size_t attributesSize = 3;
   CFTypeRef keys[attributesSize] = {
-#if defined(WEBRTC_IOS)
+#if defined(WEBRTC_IOS) && (!defined(TARGET_OS_MACCATALYST) || !TARGET_OS_MACCATALYST)
     kCVPixelBufferOpenGLESCompatibilityKey,
 #elif defined(WEBRTC_MAC)
     kCVPixelBufferOpenGLCompatibilityKey,

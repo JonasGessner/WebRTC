@@ -551,7 +551,7 @@ if (is_ios || is_mac) {
         deps = [
           ":base_objc",
           ":peerconnectionfactory_base_objc",
-          ":video_objc",
+#          ":video_objc",
           ":videoframebuffer_objc",
           "../api/video:video_frame",
           "../api/video:video_rtp_headers",
@@ -600,7 +600,7 @@ if (is_ios || is_mac) {
       deps = [
         ":base_objc",
         ":helpers_objc",
-        ":video_objc",
+#        ":video_objc",
         ":videoframebuffer_objc",
         "../rtc_base/system:gcd_helpers",
       ]
@@ -972,7 +972,7 @@ if (is_ios || is_mac) {
         ":mediasource_objc",
         ":native_api",
         ":native_video",
-        ":video_objc",
+#        ":video_objc",
         ":videoframebuffer_objc",
         ":videorendereradapter_objc",
         ":videosource_objc",
@@ -1054,7 +1054,7 @@ if (is_ios || is_mac) {
             ":native_api_audio_device_module",
             ":native_video",
             ":peerconnectionfactory_base_objc",
-            ":video_objc",
+#            ":video_objc",
             ":video_toolbox_cc",
             ":videocapture_objc",
             ":videocodec_objc",
@@ -1169,7 +1169,7 @@ if (is_ios || is_mac) {
           ":native_api",
           ":native_video",
           ":peerconnectionfactory_base_objc",
-          ":video_objc",
+#          ":video_objc",
           ":videocapture_objc",
           ":videocodec_objc",
           ":videoframebuffer_objc",
@@ -1312,7 +1312,7 @@ if (is_ios || is_mac) {
           ":native_api",
           ":native_video",
           ":peerconnectionfactory_base_objc",
-          ":ui_objc",
+#          ":ui_objc",
           ":videocapture_objc",
           ":videocodec_objc",
           ":videotoolbox_objc",
@@ -1332,7 +1332,7 @@ if (is_ios || is_mac) {
           "AVFoundation.framework",
           "CoreGraphics.framework",
           "CoreMedia.framework",
-          "GLKit.framework",
+#          "GLKit.framework",
         ]
 
         configs += [
@@ -1446,7 +1446,7 @@ if (is_ios || is_mac) {
           ":native_api",
           ":native_video",
           ":peerconnectionfactory_base_objc",
-          ":ui_objc",
+#          ":ui_objc",
           ":videocapture_objc",
           ":videocodec_objc",
           ":videotoolbox_objc",
@@ -1466,7 +1466,7 @@ if (is_ios || is_mac) {
           "AVFoundation.framework",
           "CoreGraphics.framework",
           "CoreMedia.framework",
-          "OpenGL.framework",
+#          "OpenGL.framework",
         ]
 
         configs = [ "..:common_objc" ]

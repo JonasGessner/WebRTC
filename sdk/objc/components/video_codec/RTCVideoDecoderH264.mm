@@ -209,7 +209,7 @@ void decompressionOutputCallback(void *decoderRef,
 #endif
 
   CFTypeRef keys[attributesSize] = {
-#if defined(WEBRTC_IOS)
+#if defined(WEBRTC_IOS) && (!defined(TARGET_OS_MACCATALYST) || !TARGET_OS_MACCATALYST)
       kCVPixelBufferOpenGLESCompatibilityKey,
 #elif defined(WEBRTC_MAC)
       kCVPixelBufferOpenGLCompatibilityKey,
