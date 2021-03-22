@@ -394,6 +394,8 @@ NSUInteger GetMaxSampleRate(const webrtc::H264ProfileLevelId &profile_level_id) 
   }
   BOOL isKeyframeRequired = NO;
 
+  _pixelBufferPool = VTCompressionSessionGetPixelBufferPool(_compressionSession);
+  
   // Get a pixel buffer from the pool and copy frame data over.
   if ([self resetCompressionSessionIfNeededWithFrame:frame]) {
     isKeyframeRequired = YES;
