@@ -43,7 +43,7 @@ else
     # But it fails with linker errors. Also it currently tries to build a non optimized vp9 library which could cause trouble anyway. See here: https://chromiumdash.appspot.com/commit/8f9c9ce778ecd73d9dc0a094caf64923d8ab183b
 fi
 
-echo Making xcframework
+echo Preparing xcframework
 
 rm -rf ./out/_WebRTC.xcframework
 
@@ -53,7 +53,9 @@ rm -rf ./out/mac_fat/WebRTC.framework
 # Option a fixes symlinks
 cp -a ./out/mac_x64/WebRTC.framework ./out/mac_fat/WebRTC.framework
 
+echo Making FAT mac binary
 # make fat framework binary with arm and x86. This also would have to be done for catalyst builds
 lipo -create ./out/mac_x64/WebRTC.framework/Versions/A/WebRTC ./out/mac_arm/WebRTC.framework/Versions/A/WebRTC -output  ./out/mac_fat/WebRTC.framework/Versions/A/WebRTC
 
-xcodebuild -create-xcframework -framework ./out/ios_x64/WebRTC.framework -framework ./out/ios_arm64/WebRTC.framework -framework ./out/mac_fat/WebRTC.framework -output ./out/_WebRTC.xcframework && rm -rf ./out/WebRTC.xcframework && mv ./out/_WebRTC.xcframework ./out/WebRTC.xcframework
+echo Makign xcframework
+xcodebuild -create-xcframework -framework ./out/ios_x64/WebRTC.framework -framework ./out/ios_arm64/WebRTC.framework -framework ./out/mac_fat/WebRTC.framework -output ./out/_WebRTC.xcframework && rm -rf ./out/WebRTC.xcframework && mv -a ./out/_WebRTC.xcframework ./out/WebRTC.xcframework

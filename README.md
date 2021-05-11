@@ -1,3 +1,14 @@
+# WebRTC for Darwin
+
+### Setup
+
+- Follow the usual instructions to set up a WebRTC build environment: [https://webrtc.github.io/webrtc-org/native-code/ios/]()
+- Once set up, `cd` to the `src` folder (which is a git checkout) and add this repository as a new remote
+- Fetch from the remote and switch to the branch `scion`
+- `Run ./build.sh`
+
+--------------------------
+
 **WebRTC is a free, open software project** that provides browsers and mobile
 applications with Real-Time Communications (RTC) capabilities via simple APIs.
 The WebRTC components have been optimized to best serve this purpose.
