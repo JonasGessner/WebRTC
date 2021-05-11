@@ -58,4 +58,4 @@ echo Making FAT mac binary
 lipo -create ./out/mac_x64/WebRTC.framework/Versions/A/WebRTC ./out/mac_arm/WebRTC.framework/Versions/A/WebRTC -output  ./out/mac_fat/WebRTC.framework/Versions/A/WebRTC
 
 echo Makign xcframework
-xcodebuild -create-xcframework -framework ./out/ios_x64/WebRTC.framework -framework ./out/ios_arm64/WebRTC.framework -framework ./out/mac_fat/WebRTC.framework -output ./out/_WebRTC.xcframework && rm -rf ./out/WebRTC.xcframework && mv -a ./out/_WebRTC.xcframework ./out/WebRTC.xcframework
+xcodebuild -create-xcframework -framework ./out/ios_x64/WebRTC.framework -framework ./out/ios_arm64/WebRTC.framework -framework ./out/mac_fat/WebRTC.framework -output ./out/_WebRTC.xcframework && rm -rf ./out/WebRTC.xcframework && mv ./out/_WebRTC.xcframework ./out/WebRTC.xcframework
