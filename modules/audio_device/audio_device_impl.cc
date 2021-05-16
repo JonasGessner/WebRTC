@@ -155,15 +155,37 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
   RTC_LOG(INFO) << __FUNCTION__;
 // Dummy ADM implementations if build flags are set.
 #if defined(WEBRTC_DUMMY_AUDIO_BUILD)
-  audio_device_.reset(new AudioDeviceDummy());
+  audio_device_in_.reset(new AudioDeviceDummy());
   RTC_LOG(INFO) << "Dummy Audio APIs will be utilized";
 #elif defined(WEBRTC_DUMMY_FILE_DEVICES)
-  audio_device_.reset(FileAudioDeviceFactory::CreateFileAudioDevice());
-  if (audio_device_) {
+  auto in_device = FileAudioDeviceFactory::CreateFileAudioDevice();
+  audio_device_in_.reset(in_device);
+
+  AudioLayer audio_layer(PlatformAudioLayer());
+// iOS ADM implementation.
+#if defined(WEBRTC_IOS)
+  if (audio_layer == kPlatformDefaultAudio) {
+    auto device = new ios_adm::AudioDeviceIOS(/*bypass_voice_processing=*/false);
+    audio_device_out_.reset(device);
+    RTC_LOG(INFO) << "iPhone Audio APIs will be utilized.";
+  }
+// END #if defined(WEBRTC_IOS)
+
+// Mac OS X ADM implementation.
+#elif defined(WEBRTC_MAC)
+  if (audio_layer == kPlatformDefaultAudio) {
+    auto device = new AudioDeviceMac();
+    audio_device_out_.reset(device);
+
+    RTC_LOG(INFO) << "Mac OS X Audio APIs will be utilized.";
+  }
+#endif
+
+  if (audio_device_in_) {
     RTC_LOG(INFO) << "Will use file-playing dummy device.";
   } else {
     // Create a dummy device instead.
-    audio_device_.reset(new AudioDeviceDummy());
+    audio_device_in_.reset(new AudioDeviceDummy());
     RTC_LOG(INFO) << "Dummy Audio APIs will be utilized";
   }
 
@@ -176,7 +198,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
       (audio_layer == kPlatformDefaultAudio)) {
     RTC_LOG(INFO) << "Attempting to use the Windows Core Audio APIs...";
     if (AudioDeviceWindowsCore::CoreAudioIsSupported()) {
-      audio_device_.reset(new AudioDeviceWindowsCore());
+      audio_device_in_.reset(new AudioDeviceWindowsCore());
       RTC_LOG(INFO) << "Windows Core Audio APIs will be utilized";
     }
   }
@@ -208,34 +230,34 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
   AudioManager* audio_manager = audio_manager_android_.get();
   if (audio_layer == kAndroidJavaAudio) {
     // Java audio for both input and output audio.
-    audio_device_.reset(new AudioDeviceTemplate<AudioRecordJni, AudioTrackJni>(
+    audio_device_in_.reset(new AudioDeviceTemplate<AudioRecordJni, AudioTrackJni>(
         audio_layer, audio_manager));
   } else if (audio_layer == kAndroidOpenSLESAudio) {
     // OpenSL ES based audio for both input and output audio.
-    audio_device_.reset(
+    audio_device_in_.reset(
         new AudioDeviceTemplate<OpenSLESRecorder, OpenSLESPlayer>(
             audio_layer, audio_manager));
   } else if (audio_layer == kAndroidJavaInputAndOpenSLESOutputAudio) {
     // Java audio for input and OpenSL ES for output audio (i.e. mixed APIs).
     // This combination provides low-latency output audio and at the same
     // time support for HW AEC using the AudioRecord Java API.
-    audio_device_.reset(new AudioDeviceTemplate<AudioRecordJni, OpenSLESPlayer>(
+    audio_device_in_.reset(new AudioDeviceTemplate<AudioRecordJni, OpenSLESPlayer>(
         audio_layer, audio_manager));
   } else if (audio_layer == kAndroidAAudioAudio) {
-#if defined(WEBRTC_AUDIO_DEVICE_INCLUDE_ANDROID_AAUDIO)
+#if defined(WEBRTC_audio_device_in_INCLUDE_ANDROID_AAUDIO)
     // AAudio based audio for both input and output.
-    audio_device_.reset(new AudioDeviceTemplate<AAudioRecorder, AAudioPlayer>(
+    audio_device_in_.reset(new AudioDeviceTemplate<AAudioRecorder, AAudioPlayer>(
         audio_layer, audio_manager));
 #endif
   } else if (audio_layer == kAndroidJavaInputAndAAudioOutputAudio) {
-#if defined(WEBRTC_AUDIO_DEVICE_INCLUDE_ANDROID_AAUDIO)
+#if defined(WEBRTC_audio_device_in_INCLUDE_ANDROID_AAUDIO)
     // Java audio for input and AAudio for output audio (i.e. mixed APIs).
-    audio_device_.reset(new AudioDeviceTemplate<AudioRecordJni, AAudioPlayer>(
+    audio_device_in_.reset(new AudioDeviceTemplate<AudioRecordJni, AAudioPlayer>(
         audio_layer, audio_manager));
 #endif
   } else {
     RTC_LOG(LS_ERROR) << "The requested audio layer is not supported";
-    audio_device_.reset(nullptr);
+    audio_device_in_.reset(nullptr);
   }
 // END #if defined(WEBRTC_ANDROID)
 
@@ -254,7 +276,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
   RTC_LOG(WARNING) << "PulseAudio is disabled using build flag.";
   if ((audio_layer == kLinuxAlsaAudio) ||
       (audio_layer == kPlatformDefaultAudio)) {
-    audio_device_.reset(new AudioDeviceLinuxALSA());
+    audio_device_in_.reset(new AudioDeviceLinuxALSA());
     RTC_LOG(INFO) << "Linux ALSA APIs will be utilized.";
   }
 #else
@@ -267,10 +289,10 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
   if ((audio_layer == kLinuxPulseAudio) ||
       (audio_layer == kPlatformDefaultAudio)) {
     // Linux PulseAudio implementation is default.
-    audio_device_.reset(new AudioDeviceLinuxPulse());
+    audio_device_in_.reset(new AudioDeviceLinuxPulse());
     RTC_LOG(INFO) << "Linux PulseAudio APIs will be utilized";
   } else if (audio_layer == kLinuxAlsaAudio) {
-    audio_device_.reset(new AudioDeviceLinuxALSA());
+    audio_device_in_.reset(new AudioDeviceLinuxALSA());
     RTC_LOG(WARNING) << "Linux ALSA APIs will be utilized.";
   }
 #endif  // #if !defined(WEBRTC_ENABLE_LINUX_PULSE)
@@ -279,8 +301,9 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
 // iOS ADM implementation.
 #if defined(WEBRTC_IOS)
   if (audio_layer == kPlatformDefaultAudio) {
-    audio_device_.reset(
-        new ios_adm::AudioDeviceIOS(/*bypass_voice_processing=*/false));
+    auto device = new ios_adm::AudioDeviceIOS(/*bypass_voice_processing=*/false);
+    audio_device_in_.reset(device);
+    audio_device_out_.reset(device);
     RTC_LOG(INFO) << "iPhone Audio APIs will be utilized.";
   }
 // END #if defined(WEBRTC_IOS)
@@ -288,19 +311,22 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
 // Mac OS X ADM implementation.
 #elif defined(WEBRTC_MAC)
   if (audio_layer == kPlatformDefaultAudio) {
-    audio_device_.reset(new AudioDeviceMac());
+    auto device = new AudioDeviceMac();
+    audio_device_in_.reset(device);
+    audio_device_out_.reset(device);
+
     RTC_LOG(INFO) << "Mac OS X Audio APIs will be utilized.";
   }
 #endif  // WEBRTC_MAC
 
   // Dummy ADM implementation.
   if (audio_layer == kDummyAudio) {
-    audio_device_.reset(new AudioDeviceDummy());
+    audio_device_in_.reset(new AudioDeviceDummy());
     RTC_LOG(INFO) << "Dummy Audio APIs will be utilized.";
   }
 #endif  // if defined(WEBRTC_DUMMY_AUDIO_BUILD)
 
-  if (!audio_device_) {
+  if (!audio_device_in_) {
     RTC_LOG(LS_ERROR)
         << "Failed to create the platform specific ADM implementation.";
     return -1;
@@ -310,7 +336,8 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
 
 int32_t AudioDeviceModuleImpl::AttachAudioBuffer() {
   RTC_LOG(INFO) << __FUNCTION__;
-  audio_device_->AttachAudioBuffer(&audio_device_buffer_);
+  audio_device_in_->AttachAudioBuffer(&audio_device_buffer_);
+  audio_device_out_->AttachAudioBuffer(&audio_device_buffer_);
   return 0;
 }
 
@@ -321,7 +348,8 @@ AudioDeviceModuleImpl::~AudioDeviceModuleImpl() {
 int32_t AudioDeviceModuleImpl::ActiveAudioLayer(AudioLayer* audioLayer) const {
   RTC_LOG(INFO) << __FUNCTION__;
   AudioLayer activeAudio;
-  if (audio_device_->ActiveAudioLayer(activeAudio) == -1) {
+  if (audio_device_in_->ActiveAudioLayer(activeAudio) == -1 ||
+      audio_device_out_->ActiveAudioLayer(activeAudio) == -1) {
     return -1;
   }
   *audioLayer = activeAudio;
@@ -332,12 +360,21 @@ int32_t AudioDeviceModuleImpl::Init() {
   RTC_LOG(INFO) << __FUNCTION__;
   if (initialized_)
     return 0;
-  RTC_CHECK(audio_device_);
-  AudioDeviceGeneric::InitStatus status = audio_device_->Init();
+  RTC_CHECK(audio_device_in_);
+  RTC_CHECK(audio_device_out_);
+  AudioDeviceGeneric::InitStatus status = audio_device_in_->Init();
   RTC_HISTOGRAM_ENUMERATION(
       "WebRTC.Audio.InitializationResult", static_cast<int>(status),
       static_cast<int>(AudioDeviceGeneric::InitStatus::NUM_STATUSES));
   if (status != AudioDeviceGeneric::InitStatus::OK) {
+    RTC_LOG(LS_ERROR) << "Audio device initialization failed.";
+    return -1;
+  }
+  AudioDeviceGeneric::InitStatus status_out = audio_device_out_->Init();
+  RTC_HISTOGRAM_ENUMERATION(
+      "WebRTC.Audio.InitializationResult", static_cast<int>(status_out),
+      static_cast<int>(AudioDeviceGeneric::InitStatus::NUM_STATUSES));
+  if (status_out != AudioDeviceGeneric::InitStatus::OK) {
     RTC_LOG(LS_ERROR) << "Audio device initialization failed.";
     return -1;
   }
@@ -349,7 +386,8 @@ int32_t AudioDeviceModuleImpl::Terminate() {
   RTC_LOG(INFO) << __FUNCTION__;
   if (!initialized_)
     return 0;
-  if (audio_device_->Terminate() == -1) {
+  if (audio_device_in_->Terminate() == -1 ||
+      audio_device_out_->Terminate() == -1) {
     return -1;
   }
   initialized_ = false;
@@ -364,20 +402,20 @@ bool AudioDeviceModuleImpl::Initialized() const {
 int32_t AudioDeviceModuleImpl::InitSpeaker() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  return audio_device_->InitSpeaker();
+  return audio_device_out_->InitSpeaker();
 }
 
 int32_t AudioDeviceModuleImpl::InitMicrophone() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  return audio_device_->InitMicrophone();
+  return audio_device_in_->InitMicrophone();
 }
 
 int32_t AudioDeviceModuleImpl::SpeakerVolumeIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->SpeakerVolumeIsAvailable(isAvailable) == -1) {
+  if (audio_device_out_->SpeakerVolumeIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -388,14 +426,14 @@ int32_t AudioDeviceModuleImpl::SpeakerVolumeIsAvailable(bool* available) {
 int32_t AudioDeviceModuleImpl::SetSpeakerVolume(uint32_t volume) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << volume << ")";
   CHECKinitialized_();
-  return audio_device_->SetSpeakerVolume(volume);
+  return audio_device_out_->SetSpeakerVolume(volume);
 }
 
 int32_t AudioDeviceModuleImpl::SpeakerVolume(uint32_t* volume) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   uint32_t level = 0;
-  if (audio_device_->SpeakerVolume(level) == -1) {
+  if (audio_device_out_->SpeakerVolume(level) == -1) {
     return -1;
   }
   *volume = level;
@@ -406,7 +444,7 @@ int32_t AudioDeviceModuleImpl::SpeakerVolume(uint32_t* volume) const {
 bool AudioDeviceModuleImpl::SpeakerIsInitialized() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  bool isInitialized = audio_device_->SpeakerIsInitialized();
+  bool isInitialized = audio_device_out_->SpeakerIsInitialized();
   RTC_LOG(INFO) << "output: " << isInitialized;
   return isInitialized;
 }
@@ -414,7 +452,7 @@ bool AudioDeviceModuleImpl::SpeakerIsInitialized() const {
 bool AudioDeviceModuleImpl::MicrophoneIsInitialized() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  bool isInitialized = audio_device_->MicrophoneIsInitialized();
+  bool isInitialized = audio_device_in_->MicrophoneIsInitialized();
   RTC_LOG(INFO) << "output: " << isInitialized;
   return isInitialized;
 }
@@ -422,7 +460,7 @@ bool AudioDeviceModuleImpl::MicrophoneIsInitialized() const {
 int32_t AudioDeviceModuleImpl::MaxSpeakerVolume(uint32_t* maxVolume) const {
   CHECKinitialized_();
   uint32_t maxVol = 0;
-  if (audio_device_->MaxSpeakerVolume(maxVol) == -1) {
+  if (audio_device_out_->MaxSpeakerVolume(maxVol) == -1) {
     return -1;
   }
   *maxVolume = maxVol;
@@ -432,7 +470,7 @@ int32_t AudioDeviceModuleImpl::MaxSpeakerVolume(uint32_t* maxVolume) const {
 int32_t AudioDeviceModuleImpl::MinSpeakerVolume(uint32_t* minVolume) const {
   CHECKinitialized_();
   uint32_t minVol = 0;
-  if (audio_device_->MinSpeakerVolume(minVol) == -1) {
+  if (audio_device_out_->MinSpeakerVolume(minVol) == -1) {
     return -1;
   }
   *minVolume = minVol;
@@ -443,7 +481,7 @@ int32_t AudioDeviceModuleImpl::SpeakerMuteIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->SpeakerMuteIsAvailable(isAvailable) == -1) {
+  if (audio_device_out_->SpeakerMuteIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -454,14 +492,14 @@ int32_t AudioDeviceModuleImpl::SpeakerMuteIsAvailable(bool* available) {
 int32_t AudioDeviceModuleImpl::SetSpeakerMute(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  return audio_device_->SetSpeakerMute(enable);
+  return audio_device_out_->SetSpeakerMute(enable);
 }
 
 int32_t AudioDeviceModuleImpl::SpeakerMute(bool* enabled) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool muted = false;
-  if (audio_device_->SpeakerMute(muted) == -1) {
+  if (audio_device_out_->SpeakerMute(muted) == -1) {
     return -1;
   }
   *enabled = muted;
@@ -473,7 +511,7 @@ int32_t AudioDeviceModuleImpl::MicrophoneMuteIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->MicrophoneMuteIsAvailable(isAvailable) == -1) {
+  if (audio_device_in_->MicrophoneMuteIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -484,14 +522,14 @@ int32_t AudioDeviceModuleImpl::MicrophoneMuteIsAvailable(bool* available) {
 int32_t AudioDeviceModuleImpl::SetMicrophoneMute(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  return (audio_device_->SetMicrophoneMute(enable));
+  return (audio_device_in_->SetMicrophoneMute(enable));
 }
 
 int32_t AudioDeviceModuleImpl::MicrophoneMute(bool* enabled) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool muted = false;
-  if (audio_device_->MicrophoneMute(muted) == -1) {
+  if (audio_device_in_->MicrophoneMute(muted) == -1) {
     return -1;
   }
   *enabled = muted;
@@ -503,7 +541,7 @@ int32_t AudioDeviceModuleImpl::MicrophoneVolumeIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->MicrophoneVolumeIsAvailable(isAvailable) == -1) {
+  if (audio_device_in_->MicrophoneVolumeIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -514,14 +552,14 @@ int32_t AudioDeviceModuleImpl::MicrophoneVolumeIsAvailable(bool* available) {
 int32_t AudioDeviceModuleImpl::SetMicrophoneVolume(uint32_t volume) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << volume << ")";
   CHECKinitialized_();
-  return (audio_device_->SetMicrophoneVolume(volume));
+  return (audio_device_in_->SetMicrophoneVolume(volume));
 }
 
 int32_t AudioDeviceModuleImpl::MicrophoneVolume(uint32_t* volume) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   uint32_t level = 0;
-  if (audio_device_->MicrophoneVolume(level) == -1) {
+  if (audio_device_in_->MicrophoneVolume(level) == -1) {
     return -1;
   }
   *volume = level;
@@ -534,7 +572,7 @@ int32_t AudioDeviceModuleImpl::StereoRecordingIsAvailable(
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->StereoRecordingIsAvailable(isAvailable) == -1) {
+  if (audio_device_in_->StereoRecordingIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -545,12 +583,12 @@ int32_t AudioDeviceModuleImpl::StereoRecordingIsAvailable(
 int32_t AudioDeviceModuleImpl::SetStereoRecording(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  if (audio_device_->RecordingIsInitialized()) {
+  if (audio_device_in_->RecordingIsInitialized()) {
     RTC_LOG(LERROR)
         << "unable to set stereo mode after recording is initialized";
     return -1;
   }
-  if (audio_device_->SetStereoRecording(enable) == -1) {
+  if (audio_device_in_->SetStereoRecording(enable) == -1) {
     if (enable) {
       RTC_LOG(WARNING) << "failed to enable stereo recording";
     }
@@ -568,7 +606,7 @@ int32_t AudioDeviceModuleImpl::StereoRecording(bool* enabled) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool stereo = false;
-  if (audio_device_->StereoRecording(stereo) == -1) {
+  if (audio_device_in_->StereoRecording(stereo) == -1) {
     return -1;
   }
   *enabled = stereo;
@@ -580,7 +618,7 @@ int32_t AudioDeviceModuleImpl::StereoPlayoutIsAvailable(bool* available) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->StereoPlayoutIsAvailable(isAvailable) == -1) {
+  if (audio_device_out_->StereoPlayoutIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -591,12 +629,12 @@ int32_t AudioDeviceModuleImpl::StereoPlayoutIsAvailable(bool* available) const {
 int32_t AudioDeviceModuleImpl::SetStereoPlayout(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  if (audio_device_->PlayoutIsInitialized()) {
+  if (audio_device_out_->PlayoutIsInitialized()) {
     RTC_LOG(LERROR)
         << "unable to set stereo mode while playing side is initialized";
     return -1;
   }
-  if (audio_device_->SetStereoPlayout(enable)) {
+  if (audio_device_out_->SetStereoPlayout(enable)) {
     RTC_LOG(WARNING) << "stereo playout is not supported";
     return -1;
   }
@@ -612,7 +650,7 @@ int32_t AudioDeviceModuleImpl::StereoPlayout(bool* enabled) const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool stereo = false;
-  if (audio_device_->StereoPlayout(stereo) == -1) {
+  if (audio_device_out_->StereoPlayout(stereo) == -1) {
     return -1;
   }
   *enabled = stereo;
@@ -624,7 +662,7 @@ int32_t AudioDeviceModuleImpl::PlayoutIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->PlayoutIsAvailable(isAvailable) == -1) {
+  if (audio_device_out_->PlayoutIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -636,7 +674,7 @@ int32_t AudioDeviceModuleImpl::RecordingIsAvailable(bool* available) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
   bool isAvailable = false;
-  if (audio_device_->RecordingIsAvailable(isAvailable) == -1) {
+  if (audio_device_in_->RecordingIsAvailable(isAvailable) == -1) {
     return -1;
   }
   *available = isAvailable;
@@ -647,7 +685,7 @@ int32_t AudioDeviceModuleImpl::RecordingIsAvailable(bool* available) {
 int32_t AudioDeviceModuleImpl::MaxMicrophoneVolume(uint32_t* maxVolume) const {
   CHECKinitialized_();
   uint32_t maxVol(0);
-  if (audio_device_->MaxMicrophoneVolume(maxVol) == -1) {
+  if (audio_device_in_->MaxMicrophoneVolume(maxVol) == -1) {
     return -1;
   }
   *maxVolume = maxVol;
@@ -657,7 +695,7 @@ int32_t AudioDeviceModuleImpl::MaxMicrophoneVolume(uint32_t* maxVolume) const {
 int32_t AudioDeviceModuleImpl::MinMicrophoneVolume(uint32_t* minVolume) const {
   CHECKinitialized_();
   uint32_t minVol(0);
-  if (audio_device_->MinMicrophoneVolume(minVol) == -1) {
+  if (audio_device_in_->MinMicrophoneVolume(minVol) == -1) {
     return -1;
   }
   *minVolume = minVol;
@@ -667,7 +705,7 @@ int32_t AudioDeviceModuleImpl::MinMicrophoneVolume(uint32_t* minVolume) const {
 int16_t AudioDeviceModuleImpl::PlayoutDevices() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  uint16_t nPlayoutDevices = audio_device_->PlayoutDevices();
+  uint16_t nPlayoutDevices = audio_device_out_->PlayoutDevices();
   RTC_LOG(INFO) << "output: " << nPlayoutDevices;
   return (int16_t)(nPlayoutDevices);
 }
@@ -675,13 +713,13 @@ int16_t AudioDeviceModuleImpl::PlayoutDevices() {
 int32_t AudioDeviceModuleImpl::SetPlayoutDevice(uint16_t index) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << index << ")";
   CHECKinitialized_();
-  return audio_device_->SetPlayoutDevice(index);
+  return audio_device_out_->SetPlayoutDevice(index);
 }
 
 int32_t AudioDeviceModuleImpl::SetPlayoutDevice(WindowsDeviceType device) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  return audio_device_->SetPlayoutDevice(device);
+  return audio_device_out_->SetPlayoutDevice(device);
 }
 
 int32_t AudioDeviceModuleImpl::PlayoutDeviceName(
@@ -693,7 +731,7 @@ int32_t AudioDeviceModuleImpl::PlayoutDeviceName(
   if (name == NULL) {
     return -1;
   }
-  if (audio_device_->PlayoutDeviceName(index, name, guid) == -1) {
+  if (audio_device_out_->PlayoutDeviceName(index, name, guid) == -1) {
     return -1;
   }
   if (name != NULL) {
@@ -714,7 +752,7 @@ int32_t AudioDeviceModuleImpl::RecordingDeviceName(
   if (name == NULL) {
     return -1;
   }
-  if (audio_device_->RecordingDeviceName(index, name, guid) == -1) {
+  if (audio_device_in_->RecordingDeviceName(index, name, guid) == -1) {
     return -1;
   }
   if (name != NULL) {
@@ -729,7 +767,7 @@ int32_t AudioDeviceModuleImpl::RecordingDeviceName(
 int16_t AudioDeviceModuleImpl::RecordingDevices() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  uint16_t nRecordingDevices = audio_device_->RecordingDevices();
+  uint16_t nRecordingDevices = audio_device_in_->RecordingDevices();
   RTC_LOG(INFO) << "output: " << nRecordingDevices;
   return (int16_t)nRecordingDevices;
 }
@@ -737,13 +775,13 @@ int16_t AudioDeviceModuleImpl::RecordingDevices() {
 int32_t AudioDeviceModuleImpl::SetRecordingDevice(uint16_t index) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << index << ")";
   CHECKinitialized_();
-  return audio_device_->SetRecordingDevice(index);
+  return audio_device_in_->SetRecordingDevice(index);
 }
 
 int32_t AudioDeviceModuleImpl::SetRecordingDevice(WindowsDeviceType device) {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  return audio_device_->SetRecordingDevice(device);
+  return audio_device_in_->SetRecordingDevice(device);
 }
 
 int32_t AudioDeviceModuleImpl::InitPlayout() {
@@ -752,7 +790,7 @@ int32_t AudioDeviceModuleImpl::InitPlayout() {
   if (PlayoutIsInitialized()) {
     return 0;
   }
-  int32_t result = audio_device_->InitPlayout();
+  int32_t result = audio_device_out_->InitPlayout();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.InitPlayoutSuccess",
                         static_cast<int>(result == 0));
@@ -765,7 +803,7 @@ int32_t AudioDeviceModuleImpl::InitRecording() {
   if (RecordingIsInitialized()) {
     return 0;
   }
-  int32_t result = audio_device_->InitRecording();
+  int32_t result = audio_device_in_->InitRecording();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.InitRecordingSuccess",
                         static_cast<int>(result == 0));
@@ -775,13 +813,13 @@ int32_t AudioDeviceModuleImpl::InitRecording() {
 bool AudioDeviceModuleImpl::PlayoutIsInitialized() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  return audio_device_->PlayoutIsInitialized();
+  return audio_device_out_->PlayoutIsInitialized();
 }
 
 bool AudioDeviceModuleImpl::RecordingIsInitialized() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  return audio_device_->RecordingIsInitialized();
+  return audio_device_in_->RecordingIsInitialized();
 }
 
 int32_t AudioDeviceModuleImpl::StartPlayout() {
@@ -791,7 +829,7 @@ int32_t AudioDeviceModuleImpl::StartPlayout() {
     return 0;
   }
   audio_device_buffer_.StartPlayout();
-  int32_t result = audio_device_->StartPlayout();
+  int32_t result = audio_device_out_->StartPlayout();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.StartPlayoutSuccess",
                         static_cast<int>(result == 0));
@@ -801,7 +839,7 @@ int32_t AudioDeviceModuleImpl::StartPlayout() {
 int32_t AudioDeviceModuleImpl::StopPlayout() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  int32_t result = audio_device_->StopPlayout();
+  int32_t result = audio_device_out_->StopPlayout();
   audio_device_buffer_.StopPlayout();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.StopPlayoutSuccess",
@@ -812,7 +850,7 @@ int32_t AudioDeviceModuleImpl::StopPlayout() {
 bool AudioDeviceModuleImpl::Playing() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  return audio_device_->Playing();
+  return audio_device_out_->Playing();
 }
 
 int32_t AudioDeviceModuleImpl::StartRecording() {
@@ -822,7 +860,7 @@ int32_t AudioDeviceModuleImpl::StartRecording() {
     return 0;
   }
   audio_device_buffer_.StartRecording();
-  int32_t result = audio_device_->StartRecording();
+  int32_t result = audio_device_in_->StartRecording();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.StartRecordingSuccess",
                         static_cast<int>(result == 0));
@@ -832,7 +870,7 @@ int32_t AudioDeviceModuleImpl::StartRecording() {
 int32_t AudioDeviceModuleImpl::StopRecording() {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  int32_t result = audio_device_->StopRecording();
+  int32_t result = audio_device_in_->StopRecording();
   audio_device_buffer_.StopRecording();
   RTC_LOG(INFO) << "output: " << result;
   RTC_HISTOGRAM_BOOLEAN("WebRTC.Audio.StopRecordingSuccess",
@@ -843,7 +881,7 @@ int32_t AudioDeviceModuleImpl::StopRecording() {
 bool AudioDeviceModuleImpl::Recording() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  return audio_device_->Recording();
+  return audio_device_in_->Recording();
 }
 
 int32_t AudioDeviceModuleImpl::RegisterAudioCallback(
@@ -855,7 +893,7 @@ int32_t AudioDeviceModuleImpl::RegisterAudioCallback(
 int32_t AudioDeviceModuleImpl::PlayoutDelay(uint16_t* delayMS) const {
   CHECKinitialized_();
   uint16_t delay = 0;
-  if (audio_device_->PlayoutDelay(delay) == -1) {
+  if (audio_device_out_->PlayoutDelay(delay) == -1) {
     RTC_LOG(LERROR) << "failed to retrieve the playout delay";
     return -1;
   }
@@ -866,7 +904,7 @@ int32_t AudioDeviceModuleImpl::PlayoutDelay(uint16_t* delayMS) const {
 bool AudioDeviceModuleImpl::BuiltInAECIsAvailable() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  bool isAvailable = audio_device_->BuiltInAECIsAvailable();
+  bool isAvailable = audio_device_in_->BuiltInAECIsAvailable();
   RTC_LOG(INFO) << "output: " << isAvailable;
   return isAvailable;
 }
@@ -874,7 +912,7 @@ bool AudioDeviceModuleImpl::BuiltInAECIsAvailable() const {
 int32_t AudioDeviceModuleImpl::EnableBuiltInAEC(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  int32_t ok = audio_device_->EnableBuiltInAEC(enable);
+  int32_t ok = audio_device_in_->EnableBuiltInAEC(enable);
   RTC_LOG(INFO) << "output: " << ok;
   return ok;
 }
@@ -882,7 +920,7 @@ int32_t AudioDeviceModuleImpl::EnableBuiltInAEC(bool enable) {
 bool AudioDeviceModuleImpl::BuiltInAGCIsAvailable() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  bool isAvailable = audio_device_->BuiltInAGCIsAvailable();
+  bool isAvailable = audio_device_in_->BuiltInAGCIsAvailable();
   RTC_LOG(INFO) << "output: " << isAvailable;
   return isAvailable;
 }
@@ -890,7 +928,7 @@ bool AudioDeviceModuleImpl::BuiltInAGCIsAvailable() const {
 int32_t AudioDeviceModuleImpl::EnableBuiltInAGC(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  int32_t ok = audio_device_->EnableBuiltInAGC(enable);
+  int32_t ok = audio_device_in_->EnableBuiltInAGC(enable);
   RTC_LOG(INFO) << "output: " << ok;
   return ok;
 }
@@ -898,7 +936,7 @@ int32_t AudioDeviceModuleImpl::EnableBuiltInAGC(bool enable) {
 bool AudioDeviceModuleImpl::BuiltInNSIsAvailable() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized__BOOL();
-  bool isAvailable = audio_device_->BuiltInNSIsAvailable();
+  bool isAvailable = audio_device_in_->BuiltInNSIsAvailable();
   RTC_LOG(INFO) << "output: " << isAvailable;
   return isAvailable;
 }
@@ -906,7 +944,7 @@ bool AudioDeviceModuleImpl::BuiltInNSIsAvailable() const {
 int32_t AudioDeviceModuleImpl::EnableBuiltInNS(bool enable) {
   RTC_LOG(INFO) << __FUNCTION__ << "(" << enable << ")";
   CHECKinitialized_();
-  int32_t ok = audio_device_->EnableBuiltInNS(enable);
+  int32_t ok = audio_device_in_->EnableBuiltInNS(enable);
   RTC_LOG(INFO) << "output: " << ok;
   return ok;
 }
@@ -914,7 +952,7 @@ int32_t AudioDeviceModuleImpl::EnableBuiltInNS(bool enable) {
 int32_t AudioDeviceModuleImpl::GetPlayoutUnderrunCount() const {
   RTC_LOG(INFO) << __FUNCTION__;
   CHECKinitialized_();
-  int32_t underrunCount = audio_device_->GetPlayoutUnderrunCount();
+  int32_t underrunCount = audio_device_out_->GetPlayoutUnderrunCount();
   RTC_LOG(INFO) << "output: " << underrunCount;
   return underrunCount;
 }
@@ -923,7 +961,7 @@ int32_t AudioDeviceModuleImpl::GetPlayoutUnderrunCount() const {
 int AudioDeviceModuleImpl::GetPlayoutAudioParameters(
     AudioParameters* params) const {
   RTC_LOG(INFO) << __FUNCTION__;
-  int r = audio_device_->GetPlayoutAudioParameters(params);
+  int r = audio_device_out_->GetPlayoutAudioParameters(params);
   RTC_LOG(INFO) << "output: " << r;
   return r;
 }
@@ -931,7 +969,7 @@ int AudioDeviceModuleImpl::GetPlayoutAudioParameters(
 int AudioDeviceModuleImpl::GetRecordAudioParameters(
     AudioParameters* params) const {
   RTC_LOG(INFO) << __FUNCTION__;
-  int r = audio_device_->GetRecordAudioParameters(params);
+  int r = audio_device_in_->GetRecordAudioParameters(params);
   RTC_LOG(INFO) << "output: " << r;
   return r;
 }

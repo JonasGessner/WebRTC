@@ -263,7 +263,7 @@ rtc_library("audio_device_impl") {
     }
     if (rtc_use_dummy_audio_file_devices) {
       defines += [ "WEBRTC_DUMMY_FILE_DEVICES" ]
-    } else {
+    }
       if (is_linux || is_chromeos) {
         sources += [
           "linux/alsasymboltable_linux.cc",
@@ -321,7 +321,7 @@ rtc_library("audio_device_impl") {
         deps += [ "../../rtc_base:win32" ]
       }
       configs += [ ":audio_device_warnings_config" ]
-    }
+    
   } else {
     defines = [ "WEBRTC_DUMMY_AUDIO_BUILD" ]
   }

@@ -170,7 +170,8 @@ class AudioDeviceModuleImpl : public AudioDeviceModuleForTest {
   std::unique_ptr<AudioManager> audio_manager_android_;
 #endif
   AudioDeviceBuffer audio_device_buffer_;
-  std::unique_ptr<AudioDeviceGeneric> audio_device_;
+  std::unique_ptr<AudioDeviceGeneric> audio_device_in_;
+  std::unique_ptr<AudioDeviceGeneric> audio_device_out_;
 };
 
 }  // namespace webrtc
