@@ -1447,7 +1447,7 @@ if (is_ios || is_mac) {
           ":native_api",
           ":native_video",
           ":peerconnectionfactory_base_objc",
-#          ":ui_objc",
+          ":ui_objc",
           ":videocapture_objc",
           ":videocodec_objc",
           ":videotoolbox_objc",
@@ -1467,7 +1467,7 @@ if (is_ios || is_mac) {
           "AVFoundation.framework",
           "CoreGraphics.framework",
           "CoreMedia.framework",
-#          "OpenGL.framework",
+          "OpenGL.framework",
         ]
 
         configs = [ "..:common_objc" ]

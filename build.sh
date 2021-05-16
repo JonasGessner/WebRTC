@@ -19,11 +19,11 @@ else
     echo Building iOS target
     ninja -C out/ios_arm64 framework_objc
 
-    echo Making simulator target
-    gn gen out/ios_x64 --args='target_os="ios" target_cpu="x64" use_xcode_clang=true is_component_build=false rtc_include_tests=false ios_deployment_target="13.0" enable_ios_bitcode=true use_goma=false rtc_enable_symbol_export=true '"$debug"' rtc_libvpx_build_vp9=true rtc_use_metal_rendering=true rtc_enable_protobuf=true'
-
-    echo Building simulator target
-    ninja -C out/ios_x64 framework_objc
+#    echo Making simulator target
+#    gn gen out/ios_x64 --args='target_os="ios" target_cpu="x64" use_xcode_clang=true is_component_build=false rtc_include_tests=false ios_deployment_target="13.0" enable_ios_bitcode=true use_goma=false rtc_enable_symbol_export=true '"$debug"' rtc_libvpx_build_vp9=true rtc_use_metal_rendering=true rtc_enable_protobuf=true'
+#
+#    echo Building simulator target
+#    ninja -C out/ios_x64 framework_objc
 
     echo Making macOS-x86 target
     gn gen out/mac_x64 --args='target_os="mac" target_cpu="x64" is_component_build=false rtc_include_tests=false use_goma=false rtc_enable_symbol_export=true '"$debug"' rtc_libvpx_build_vp9=true rtc_use_metal_rendering=true mac_deployment_target="10.11" rtc_enable_protobuf=true'

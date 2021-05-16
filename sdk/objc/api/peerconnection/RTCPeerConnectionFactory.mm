@@ -51,6 +51,8 @@
 #import "sdk/objc/native/api/audio_device_module.h"
 #endif
 
+#include "modules/audio_device/dummy/file_audio_device_factory.h"
+
 // Adding the nogncheck to disable the including header check.
 // The no-media version PeerConnectionFactory doesn't depend on media related
 // C++ target.
@@ -68,11 +70,12 @@
 @synthesize nativeFactory = _nativeFactory;
 
 - (rtc::scoped_refptr<webrtc::AudioDeviceModule>)audioDeviceModule {
-#if defined(WEBRTC_IOS)
-  return webrtc::CreateAudioDeviceModule();
-#else
+    webrtc::FileAudioDeviceFactory::SetFilenamesToUse([[NSBundle mainBundle] pathForResource:@"sound" ofType:@"wav"].UTF8String, "");
+// #if defined(WEBRTC_IOS)
+//   return webrtc::CreateAudioDeviceModule();
+// #else
   return nullptr;
-#endif
+// #endif
 }
 
 - (instancetype)init {
