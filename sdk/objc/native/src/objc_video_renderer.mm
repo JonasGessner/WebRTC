@@ -28,7 +28,11 @@ void ObjCVideoRenderer::OnFrame(const VideoFrame& nativeVideoFrame) {
       CGSizeMake(videoFrame.width, videoFrame.height) :
       CGSizeMake(videoFrame.height, videoFrame.width);
 
-  if (!CGSizeEqualToSize(size_, current_size)) {
+  if (CGSizeEqualToSize(current_size, CGSizeZero)) {
+    NSLog(@"Blocked attempt to render empty frame (2) to prevent crash");
+    return;
+  }
+  if (!CGSizeEqualToSize(size_, current_size) && !CGSizeEqualToSize(current_size, CGSizeZero)) {
     size_ = current_size;
     [renderer_ setSize:size_];
   }

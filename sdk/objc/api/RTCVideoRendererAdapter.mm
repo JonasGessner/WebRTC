@@ -32,7 +32,12 @@ class VideoRendererAdapter
                               ? CGSizeMake(videoFrame.width, videoFrame.height)
                               : CGSizeMake(videoFrame.height, videoFrame.width);
 
-    if (!CGSizeEqualToSize(size_, current_size)) {
+  if (CGSizeEqualToSize(current_size, CGSizeZero)) {
+      NSLog(@"Blocked attempt to render empty frame (1) to prevent crash");
+      return;
+  }
+
+  if (!CGSizeEqualToSize(size_, current_size) && !CGSizeEqualToSize(current_size, CGSizeZero)) {
       size_ = current_size;
       [adapter_.videoRenderer setSize:size_];
     }
