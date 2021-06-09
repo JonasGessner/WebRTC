@@ -4,13 +4,13 @@ trap "exit" INT
 
 if [[ "$#" -eq 1 ]] && [[ "$1" == "debug" ]]; then
     echo "Debug enabled"
-    debug="is_debug=true enable_stripping=false rtc_enable_symbol_export=true"
+    debug="is_debug=true enable_stripping=false"
 else
     echo "No debug"
-    debug="is_debug=false enable_stripping=true rtc_enable_symbol_export=false"
+    debug="is_debug=false enable_stripping=true"
 fi
 
-common="build_with_mozilla=false rtc_use_x11=false rtc_build_examples=false is_component_build=false rtc_include_tests=false use_goma=false rtc_libvpx_build_vp9=true rtc_use_metal_rendering=true rtc_enable_protobuf=false swift_whole_module_optimization=true"
+common="rtc_enable_symbol_export=true build_with_mozilla=false rtc_use_x11=false rtc_build_examples=false is_component_build=false rtc_include_tests=false use_goma=false rtc_libvpx_build_vp9=true rtc_use_metal_rendering=true rtc_enable_protobuf=false swift_whole_module_optimization=true"
 
 iosFlags='ios_deployment_target="13.0" use_xcode_clang=true enable_ios_bitcode=true'
 
